@@ -13,9 +13,11 @@
 		}
 		?>
 		<div class="other filter">
+<?php if (!empty($filter)) { ?>
 			<form action=<?php echo url::site() . '/mobile/reports/search' ?> method="get" accept-charset="utf-8">
-				<div><label for="town">Your town</label>
-				<input type="text" name="town" value="<?php echo isset($_GET['town']) ? $_GET['town'] : ''; ?>"></div>
+				<div><label for="town">Your Area</label>
+				<input type="text" name="town" value="<?php echo $town ?>"></div>
+				
 				<div><label for="distance">Distance</label>
 				<select name="distance" id="distance">
 					<?php
@@ -29,7 +31,7 @@
 					?>
 				</select></div>
 				<div><label for="category">Category</label>
-				<select name="category_id" id="category_id">
+				<select class="catlist" name="category_id" id="category_id">
 					<?php 
 						$selected_category = isset($_GET['category_id']) ? $_GET['category_id'] : '0';
 						
@@ -64,9 +66,11 @@
 						echo '>' . $option . '</option>';
 					}
 					?>
-				</select></div>
-				<input type="submit" value="Search &rarr;">
+				</select>
+				<input class="searchbtn" type="submit" value="Search &rarr;">
+				</div>
 			</form>
+<?php } ?>
 		</div>
 		<div class="list">
 			<ul>
@@ -86,9 +90,10 @@
 						echo '<li><span class="verified ';
 						if ($incident->incident_verified == 1)
 						{
-							echo "verified_yes";
+							echo 'verified_yes">Verified</span>';
+						} else {
+							echo '">Unverified</span>';
 						}
-						echo '">Verified</span>';
 						echo "<strong><a href=\"".url::site()."mobile/reports/view/".$incident->id."?c=".$category_id."&p=".$page_no."\">".$incident->incident_title."</a></strong>";
 						echo "&nbsp;&nbsp;<i>$incident_date";
 						if(isset($lastupdated)) {

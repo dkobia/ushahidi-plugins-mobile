@@ -59,6 +59,7 @@ class Reports_Controller extends Mobile_Controller {
 			$category = FALSE;
 		}
 			
+		$this->template->content->filter = false;
 		$this->template->content->incidents = $incidents;
 		$this->template->content->category = $category;
 		$this->template->content->have_results = true;
@@ -73,66 +74,77 @@ class Reports_Controller extends Mobile_Controller {
 		
 		$this->template->content = new View('mobile/reports');
 		
+		// Force Home breadcrumb
+		$this->template->header->breadcrumbs = " ";
+		
 		$db = new Database;
 		
 		$town = isset($_GET['town']) ? $_GET['town'] : '';
-        $categoryid = isset($_GET['category_id']) ? (int)$_GET['category_id'] : null;
-        $distance = isset($_GET['distance']) ? (float)$_GET['distance'] : 0.5;
-        $order = isset($_GET['order']) ? $_GET['order'] : '';
-        switch ($order) {
-        case 'date':
-           $order = 'coalesce(incident_datemodify, incident_dateadd) desc';
-           break;
-        case 'verified':
-            $order  = 'incident_verified desc';
-            break;
-        default:
-            $order = 'distance asc';
-        }
+		$categoryid = isset($_GET['category_id']) ? (int)$_GET['category_id'] : null;
+		$distance = isset($_GET['distance']) ? (float)$_GET['distance'] : 0.5;
+		$order = isset($_GET['order']) ? $_GET['order'] : '';
+		switch ($order) {
+		case 'date':
+			$order = 'coalesce(incident_datemodify, incident_dateadd) desc';
+			break;
+		case 'verified':
+			$order  = 'incident_verified desc';
+			break;
+		default:
+			$order = 'distance asc';
+		}
 
 		if (!empty($town)) {
-			$location = mobile_geocoder::geocode($town . ',New Zealand');
+			$location = $town;
+			if ( ! Kohana::config('settings.multi_country') && $country = ORM::factory('country', Kohana::config('settings.default_country'))->country)
+			{
+				$location .= ', '.$country;
+			}
+			$location = mobile_geocoder::geocode($location);
 		}
 
 		// if we don't get location there will be no results rendered
 		if (!$location) {
 			$this->template->content->have_results = false;
+			$this->template->content->filter = true;
+			$this->template->content->town = $town;
 			$this->template->content->category = 0;
+			$this->template->content->categories = array();
 			return;
 		}
 
-        $fields = '
-            69.09 *
-            DEGREES(
-              ACOS(
-                SIN( RADIANS(latitude) )*SIN( RADIANS(' . $location['lat'] . ') )
-               +
-                COS( RADIANS(latitude) )*COS( RADIANS(' . $location['lat'] . ') )
-               *
-                COS( RADIANS(longitude - (' . $location['lon'] . ')) )
-              )
-            ) as distance,
-            i.*,coalesce(incident_datemodify, incident_dateadd) as last_updated, l.location_name';
+		$fields = '
+			69.09 *
+			DEGREES(
+				ACOS(
+					SIN( RADIANS(latitude) )*SIN( RADIANS(' . $location['lat'] . ') )
+				+
+					COS( RADIANS(latitude) )*COS( RADIANS(' . $location['lat'] . ') )
+				*
+					COS( RADIANS(longitude - (' . $location['lon'] . ')) )
+				)
+			) as distance,
+			i.*,coalesce(incident_datemodify, incident_dateadd) as last_updated, l.location_name';
 
-        $where = '
-            WHERE `incident_active` = 1
-            ';
+		$where = '
+			WHERE `incident_active` = 1
+			';
 
-        $having = "
-            HAVING distance < $distance
-            ";
+		$having = "
+			HAVING distance < $distance
+			";
 
-        $incidents_sql = "SELECT $fields
-            FROM `".$this->table_prefix."incident` AS i
-                JOIN `" . $this->table_prefix . "location` AS l ON (i.`location_id` = l.`id`)";
+		$incidents_sql = "SELECT $fields
+			FROM `".$this->table_prefix."incident` AS i
+				JOIN `" . $this->table_prefix . "location` AS l ON (i.`location_id` = l.`id`)";
 
-        if (!empty($categoryid)) {
-            $incidents_sql .= "
-                JOIN `" . $this->table_prefix . "incident_category` AS ic ON (i.`id` = ic.`incident_id`)
-                ";
-            $where .= "AND  ic.category_id = $categoryid ";
-        }
-        $incidents_sql .= $where . $having;
+		if (!empty($categoryid)) {
+			$incidents_sql .= "
+				JOIN `" . $this->table_prefix . "incident_category` AS ic ON (i.`id` = ic.`incident_id`)
+				";
+			$where .= "AND  ic.category_id = $categoryid ";
+		}
+		$incidents_sql .= $where . $having;
 
 		$pagination = new Pagination(array(
 				'style' => 'mobile',
@@ -140,7 +152,7 @@ class Reports_Controller extends Mobile_Controller {
 				'items_per_page' => (int) Kohana::config('mobile.items_per_page'),
 				'total_items' => $db->query($incidents_sql)->count()
 		));
-		
+
 		$this->template->content->pagination = $pagination;
 
 		$incidents = $db->query(
@@ -150,6 +162,7 @@ class Reports_Controller extends Mobile_Controller {
 				 OFFSET {$pagination->sql_offset}"
 		);
 
+		$this->template->content->filter = true;
 		$this->template->content->have_results = true;
 		$this->template->content->town = $town;
 		$this->template->content->incidents = $incidents;
@@ -175,6 +188,8 @@ class Reports_Controller extends Mobile_Controller {
 		$this->template->header->show_map = TRUE;
 		$this->template->header->js = new View('mobile/reports_view_js');
 		$this->template->content = new View('mobile/reports_view');
+		
+		$this->template->header->breadcrumbs = " ";
 		
 		if ( ! $id )
 		{
